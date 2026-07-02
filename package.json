@@ -1,0 +1,31 @@
+{
+  "name": "he-thong-chuyen-tien",
+  "private": true,
+  "version": "2.27.0",
+  "type": "module",
+  "description": "Hệ thống quản lý chuyển tiền (React + Vite + Supabase, multi-tenant, i18n)",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.4",
+    "html2canvas": "^1.4.1",
+    "i18next": "^23.15.1",
+    "jspdf": "^2.5.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-i18next": "^15.0.2",
+    "react-router-dom": "^6.26.2"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@vitejs/plugin-react": "^4.3.1",
+    "eslint": "^10.6.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.7.0",
+    "vite": "^5.4.8"
+  }
+}
