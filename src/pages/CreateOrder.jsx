@@ -9,6 +9,9 @@ import PayoutAddress from '../components/PayoutAddress'
 import CurrencyInput from '../components/CurrencyInput'
 import { VN_BANKS } from '../lib/banks'
 
+// Nhóm hàng cho bảng Kê khai (tạm — chờ danh sách chính thức từ khách)
+const NHOM_HANG = ['Thực phẩm khô', 'Quần áo', 'Mỹ phẩm', 'Điện tử', 'Thuốc / Vitamin', 'Đồ gia dụng', 'Khác']
+
 const BANK_METHOD = 'Chuyển khoản ngân hàng'
 const CASH_METHOD = 'Tiền mặt'
 
@@ -18,7 +21,7 @@ const EMPTY = {
   bank: { name: '', account: '', holder: '', branch: '' },
   tx: { send: '0.00', rate: '1.00', cur: 'VND', taxPct: '1', feePct: '3', pay: 'Tiền mặt', memo: '' },
   orderType: 'money', // 'money' = gửi tiền | 'cargo' = gửi hàng
-  cargo: { service: '', pieces: '', desc: '', goodsType: '', weight: '', reason: '', freight: '0.00', goodsValue: '0.00', box: '', surcharge: '0.00', insurance: '0.00', pay: 'Tiền mặt' },
+  cargo: { service: '', pieces: '', desc: '', goodsType: '', weight: '', reason: '', freight: '0.00', goodsValue: '0.00', box: '', surcharge: '0.00', insurance: '0.00', pay: '', items: [], allowMsg: false, msg: '' },
   employee: '',
   status: 'pending',
 }
@@ -159,6 +162,14 @@ export default function CreateOrder() {
   }, [id, editing, orders])
 
   const set = (group, key, value) => setForm((f) => ({ ...f, [group]: { ...f[group], [key]: value } }))
+
+  // ===== Kê khai hàng hoá (bảng dòng sản phẩm) =====
+  const cargoItems = form.cargo.items || []
+  const setCargoItems = (items) => set('cargo', 'items', items)
+  const addCargoItem = () => setCargoItems([...cargoItems, { product: '', qty: '1', price: '0.00' }])
+  const updateCargoItem = (i, k, v) => setCargoItems(cargoItems.map((it, idx) => (idx === i ? { ...it, [k]: v } : it)))
+  const removeCargoItem = (i) => setCargoItems(cargoItems.filter((_, idx) => idx !== i))
+  const cargoDeclareTotal = cargoItems.reduce((s, it) => s + num(it.qty) * num(it.price), 0)
   const setSenderField = (k, v) => set('sender', k, v)
   const setBenField = (k, v) => set('ben', k, v)
 
@@ -442,7 +453,12 @@ export default function CreateOrder() {
           <div className="pbody">
             <div className="grid">
               <div className="field"><label>Dịch vụ</label>
-                <input value={form.cargo.service} onChange={(e) => set('cargo', 'service', e.target.value)} placeholder="Air / Sea / Express" /></div>
+                <select value={form.cargo.service} onChange={(e) => set('cargo', 'service', e.target.value)}>
+                  <option value="">— Chọn —</option>
+                  <option>D2D - Door to door</option>
+                  <option>A2A - Air to air</option>
+                  <option>STA - Station</option>
+                </select></div>
               <div className="field"><label>Số kiện</label>
                 <input inputMode="numeric" value={form.cargo.pieces} onChange={(e) => set('cargo', 'pieces', e.target.value)} placeholder="1" /></div>
             </div>
@@ -450,12 +466,24 @@ export default function CreateOrder() {
               <textarea value={form.cargo.desc} onChange={(e) => set('cargo', 'desc', e.target.value)} /></div>
             <div className="grid">
               <div className="field"><label>Loại hàng</label>
-                <input value={form.cargo.goodsType} onChange={(e) => set('cargo', 'goodsType', e.target.value)} placeholder="Quần áo, thực phẩm khô…" /></div>
+                <select value={form.cargo.goodsType} onChange={(e) => set('cargo', 'goodsType', e.target.value)}>
+                  <option value="">— Chọn —</option>
+                  <option>Có sữa</option>
+                  <option>Không có sữa</option>
+                  <option>Kinh doanh</option>
+                </select></div>
               <div className="field"><label>Trọng lượng (lbs)</label>
                 <input inputMode="decimal" value={form.cargo.weight} onChange={(e) => set('cargo', 'weight', e.target.value)} placeholder="0" /></div>
             </div>
             <div className="field full"><label>Lý do gửi hàng</label>
-              <input value={form.cargo.reason} onChange={(e) => set('cargo', 'reason', e.target.value)} placeholder="Quà tặng / cá nhân…" /></div>
+              <select value={form.cargo.reason} onChange={(e) => set('cargo', 'reason', e.target.value)}>
+                <option value="">— Chọn —</option>
+                <option>Samples (Hàng mẫu)</option>
+                <option>Gifts (Quà tặng)</option>
+                <option>Return (Hoàn trả)</option>
+                <option>Repair (Sửa chữa)</option>
+                <option>Trading (Mua bán)</option>
+              </select></div>
             <div className="grid">
               <div className="field"><label>Giá cước</label>
                 <CurrencyInput value={form.cargo.freight} onChange={(v) => set('cargo', 'freight', v)} unit="USD" /></div>
@@ -464,7 +492,11 @@ export default function CreateOrder() {
             </div>
             <div className="grid">
               <div className="field"><label>Box</label>
-                <input value={form.cargo.box} onChange={(e) => set('cargo', 'box', e.target.value)} placeholder="Số/loại thùng" /></div>
+                <select value={form.cargo.box} onChange={(e) => set('cargo', 'box', e.target.value)}>
+                  <option value="">— Chọn —</option>
+                  <option>new</option>
+                  <option>used</option>
+                </select></div>
               <div className="field"><label>Phụ phí</label>
                 <CurrencyInput value={form.cargo.surcharge} onChange={(v) => set('cargo', 'surcharge', v)} unit="USD" /></div>
             </div>
@@ -473,7 +505,10 @@ export default function CreateOrder() {
                 <CurrencyInput value={form.cargo.insurance} onChange={(v) => set('cargo', 'insurance', v)} unit="USD" /></div>
               <div className="field"><label>Hình thức thanh toán</label>
                 <select value={form.cargo.pay} onChange={(e) => set('cargo', 'pay', e.target.value)}>
-                  <option>Tiền mặt</option><option>Chuyển khoản</option><option>Thẻ</option>
+                  <option value="">— Chọn —</option>
+                  <option>Tiền mặt</option>
+                  <option>Thanh toán Vn</option>
+                  <option>Chưa thanh toán</option>
                 </select></div>
             </div>
             <div className="grid">
@@ -490,6 +525,54 @@ export default function CreateOrder() {
                   style={!isAdmin ? { background: 'var(--bg-soft,#f1f1f4)', cursor: 'not-allowed' } : undefined}
                   title={!isAdmin ? 'Tự lấy theo tài khoản đang đăng nhập' : undefined} /></div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* KÊ KHAI HÀNG HOÁ (chỉ khi gửi hàng) */}
+      {!isMoney && (
+        <div className="panel panel--cargo">
+          <div className="phead phead--flex">
+            <span>Kê khai hàng hoá</span>
+            <button type="button" className="btn-declare" onClick={addCargoItem}>+ Kê khai</button>
+          </div>
+          <div className="pbody">
+            <div className="declare-scroll">
+              <table className="declare-table">
+                <thead><tr>
+                  <th>Sản phẩm</th><th>Số lượng</th><th>Đơn giá</th><th>Thành tiền</th><th aria-label="Xoá"></th>
+                </tr></thead>
+                <tbody>
+                  {cargoItems.length === 0 ? (
+                    <tr><td colSpan={5} className="empty-row">Chưa có sản phẩm</td></tr>
+                  ) : cargoItems.map((it, i) => (
+                    <tr key={i}>
+                      <td>
+                        <select value={it.product} onChange={(e) => updateCargoItem(i, 'product', e.target.value)}>
+                          <option value="">Chọn nhóm hàng</option>
+                          {NHOM_HANG.map((g) => <option key={g} value={g}>{g}</option>)}
+                        </select></td>
+                      <td className="col-qty"><input inputMode="numeric" value={it.qty} onChange={(e) => updateCargoItem(i, 'qty', e.target.value)} /></td>
+                      <td className="col-price"><input inputMode="decimal" value={it.price} onChange={(e) => updateCargoItem(i, 'price', e.target.value)} /></td>
+                      <td className="line-total">{fmt(num(it.qty) * num(it.price))}</td>
+                      <td className="col-del"><button type="button" className="btn-del" title="Xoá dòng" onClick={() => removeCargoItem(i)}>🗑</button></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="declare-total">Tổng cước <b>{fmt(cargoDeclareTotal)} USD</b></div>
+
+            <label className="declare-msg-chk">
+              <input type="checkbox" checked={!!form.cargo.allowMsg} onChange={(e) => set('cargo', 'allowMsg', e.target.checked)} />
+              <span>Cho phép tin nhắn cho người nhận</span>
+            </label>
+            {form.cargo.allowMsg && (
+              <div className="field full" style={{ marginTop: 8 }}>
+                <label>Nội dung tin nhắn</label>
+                <textarea value={form.cargo.msg} onChange={(e) => set('cargo', 'msg', e.target.value)} placeholder="Nhập nội dung tin nhắn gửi người nhận…" />
+              </div>
+            )}
           </div>
         </div>
       )}

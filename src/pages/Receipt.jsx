@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { fetchOrder } from '../lib/data'
-import { fmt, fdate } from '../lib/format'
+import { fmt, fdate, num } from '../lib/format'
 import { downloadReceiptPdf } from '../lib/receiptPdf'
 
 // ====== Trạng thái song ngữ ======
@@ -59,10 +59,10 @@ function Line({ k, v }) {
 }
 
 // Tiêu đề + hàng thông tin đơn (căn giữa)
-function Header({ order }) {
+function Header({ order, title }) {
   return (
     <div className="rcpt-head">
-      <div className="rcpt-bigttl">CUSTOMER RECEIPT</div>
+      <div className="rcpt-bigttl">{title || 'CUSTOMER RECEIPT'}</div>
       <table className="rcpt-metarow"><tbody><tr>
         <td><b>Order No:</b> {order.code}</td>
         <td><b>Date / Ngày:</b> {fdate(order.createdAt)}</td>
@@ -112,6 +112,87 @@ function Parties({ order, isBank, senderAddr, recvAddr }) {
   )
 }
 
+// ====== Biên nhận GỬI HÀNG ======
+function CargoParties({ order, senderAddr, recvAddr }) {
+  const c = order.cargo || {}
+  const items = c.items || []
+  const declTotal = items.reduce((s, it) => s + num(it.qty) * num(it.price), 0)
+  const freightTotal = declTotal > 0 ? declTotal : num(c.freight)
+  const grand = freightTotal + num(c.surcharge) + num(c.insurance)
+  return (
+    <>
+      {/* Người gửi / Người nhận */}
+      <table className="rcpt-grid">
+        <thead><tr><th>SHIPPER (Người gửi)</th><th>CONSIGNEE (Người nhận)</th></tr></thead>
+        <tbody><tr>
+          <td>
+            <Line k="Full Name (Họ tên)" v={`${order.sender.first} ${order.sender.last}`.trim()} />
+            <Line k="Address (Địa chỉ)" v={senderAddr} />
+            <Line k="Phone (Điện thoại)" v={order.sender.phone} />
+          </td>
+          <td>
+            <Line k="Full Name (Họ tên)" v={`${order.ben.first} ${order.ben.last}`.trim()} />
+            <Line k="Phone (Điện thoại)" v={order.ben.phone} />
+            <Line k="Address (Địa chỉ)" v={recvAddr} />
+          </td>
+        </tr></tbody>
+      </table>
+
+      {/* Thông tin lô hàng */}
+      <table className="rcpt-grid rcpt-mt">
+        <thead><tr><th colSpan={2}>SHIPMENT DETAILS (Thông tin hàng hoá)</th></tr></thead>
+        <tbody><tr>
+          <td>
+            <Line k="Service (Dịch vụ)" v={c.service} />
+            <Line k="Pieces (Số kiện)" v={c.pieces} />
+            <Line k="Weight (Trọng lượng, lbs)" v={c.weight} />
+            <Line k="Box (Thùng)" v={c.box} />
+          </td>
+          <td>
+            <Line k="Goods type (Loại hàng)" v={c.goodsType} />
+            <Line k="Reason (Lý do gửi)" v={c.reason} />
+            <Line k="Payment (Thanh toán)" v={c.pay} />
+            <Line k="Description (Mô tả)" v={c.desc} />
+          </td>
+        </tr></tbody>
+      </table>
+
+      {/* Bảng kê khai hàng hoá */}
+      <table className="rcpt-decl rcpt-mt">
+        <thead><tr>
+          <th>Product (Sản phẩm)</th><th className="c">Qty (SL)</th><th className="r">Unit price (Đơn giá)</th><th className="r">Amount (Thành tiền)</th>
+        </tr></thead>
+        <tbody>
+          {items.length === 0 ? (
+            <tr><td colSpan={4} className="c muted">— Không có sản phẩm kê khai / No declared items —</td></tr>
+          ) : items.map((it, i) => (
+            <tr key={i}>
+              <td>{it.product || '—'}</td>
+              <td className="c">{it.qty}</td>
+              <td className="r">{fmt(num(it.price))}</td>
+              <td className="r">{fmt(num(it.qty) * num(it.price))}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {/* Chi phí */}
+      <table className="rcpt-charges rcpt-mt"><tbody>
+        <tr><td>Total freight (Tổng cước)</td><td className="r">{fmt(freightTotal)} USD</td></tr>
+        <tr><td>Surcharge (Phụ phí)</td><td className="r">{fmt(num(c.surcharge))} USD</td></tr>
+        <tr><td>Insurance (Phí bảo hiểm)</td><td className="r">{fmt(num(c.insurance))} USD</td></tr>
+        <tr><td>Goods value (Tiền hàng)</td><td className="r">{fmt(num(c.goodsValue))} USD</td></tr>
+        <tr className="grand"><td>TOTAL (Tổng cộng)</td><td className="r">{fmt(grand)} USD</td></tr>
+      </tbody></table>
+
+      {/* Tin nhắn cho người nhận */}
+      {c.allowMsg && (c.msg || '').trim() ? (
+        <div className="rcpt-msg"><b>Message to consignee (Tin nhắn cho người nhận):</b> {c.msg}</div>
+      ) : null}
+    </>
+  )
+}
+
 // Hàng chữ ký (gạch ký + nhãn) — dùng chung cho bản chính & bản sao
 function Signs() {
   return (
@@ -137,9 +218,12 @@ export default function Receipt() {
   if (!order) return <div className="empty">{t('common.loading')}</div>
 
   const isBank = (order.ben.delivery || '').includes('Chuyển khoản')
+  const isCargo = order.orderType === 'cargo'
+  const title = isCargo ? 'CARGO RECEIPT' : 'CUSTOMER RECEIPT'
   const senderAddr = [order.sender.addr, order.sender.city, order.sender.state, order.sender.zip].filter(Boolean).join(', ')
   const recvAddr = order.ben.payoutAddr || [order.ben.addr, order.ben.city, order.ben.state || order.ben.province].filter(Boolean).join(', ')
   const parts = { order, isBank, senderAddr, recvAddr }
+  const Body = () => (isCargo ? <CargoParties {...parts} /> : <Parties {...parts} />)
 
   return (
     <>
@@ -153,8 +237,8 @@ export default function Receipt() {
       <div className="rcpt-scroll">
         <div className="rcpt-page" id="receipt-sheet">
           {/* ===== BẢN CHÍNH ===== */}
-          <Header order={order} />
-          <Parties {...parts} />
+          <Header order={order} title={title} />
+          <Body />
           <Signs />
 
           {/* ===== ĐIỀU KHOẢN ===== */}
@@ -176,7 +260,7 @@ export default function Receipt() {
             <td><b>Date / Ngày:</b> {fdate(order.createdAt)}</td>
             <td><b>Employee / Nhân viên:</b> {order.employee || '—'}</td>
           </tr></tbody></table>
-          <Parties {...parts} />
+          <Body />
           <Signs />
         </div>
       </div>
