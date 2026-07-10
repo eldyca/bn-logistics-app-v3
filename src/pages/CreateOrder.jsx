@@ -331,9 +331,9 @@ export default function CreateOrder() {
             <label>Loại dịch vụ / Service <span className="r">*</span></label>
             <div className="seg-toggle">
               <button type="button" className={'seg-btn' + (form.orderType === 'money' ? ' on' : '')}
-                onClick={() => setForm((f) => ({ ...f, orderType: 'money' }))}>💵 Gửi tiền</button>
+                onClick={() => setForm((f) => ({ ...f, orderType: 'money' }))}>Gửi tiền</button>
               <button type="button" className={'seg-btn' + (form.orderType === 'cargo' ? ' on' : '')}
-                onClick={() => setForm((f) => ({ ...f, orderType: 'cargo' }))}>📦 Gửi hàng</button>
+                onClick={() => setForm((f) => ({ ...f, orderType: 'cargo' }))}>Gửi hàng</button>
             </div>
           </div>
 
@@ -494,8 +494,8 @@ export default function CreateOrder() {
               <div className="field"><label>Box</label>
                 <select value={form.cargo.box} onChange={(e) => set('cargo', 'box', e.target.value)}>
                   <option value="">— Chọn —</option>
-                  <option>new</option>
-                  <option>used</option>
+                  <option>New</option>
+                  <option>Used</option>
                 </select></div>
               <div className="field"><label>Phụ phí</label>
                 <CurrencyInput value={form.cargo.surcharge} onChange={(v) => set('cargo', 'surcharge', v)} unit="USD" /></div>

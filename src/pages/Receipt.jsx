@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import JsBarcode from 'jsbarcode'
 import { fetchOrder } from '../lib/data'
 import { fmt, fdate, num } from '../lib/format'
 import { downloadReceiptPdf } from '../lib/receiptPdf'
@@ -113,83 +114,117 @@ function Parties({ order, isBank, senderAddr, recvAddr }) {
 }
 
 // ====== Biên nhận GỬI HÀNG ======
-function CargoParties({ order, senderAddr, recvAddr }) {
+// ====== Điều khoản vận chuyển (POLICY) cho biên nhận GỬI HÀNG ======
+const CARGO_POLICY = [
+  {
+    n: '1. CLIENT RESPONSIBILITY',
+    t: "Client(s) must advise the company about the content's condition before it is packaged by the company in order to perform its services safely and efficiently. CLIENT(s) must provide the company with a receipt of any electronic or high valued ($100+) package. Client(s) must inform the recipient to check the package in the presence of an employee. The client must inform the company regarding any information about their contents in due time to enable the required services to be performed effectively.",
+    b: [],
+  },
+  {
+    n: '2. BN LOGISTICS & CARGO INC RESPONSIBILITY',
+    t: 'The company warrants that its services shall be performed in a professional manner and will abide by the Homeland Security rules and regulations. BN Logistics & Cargo INC reserves the right to refuse service under any circumstances.',
+    b: [
+      'Attending employees shall inspect the package when the company receives the package from either the client or a third party, which is associated with the client.',
+      'BN Logistics & Cargo INC reserves the right to inspect the package for any reason.',
+      'The company is NOT responsible for: (1) unlisted products or items, (2) perishable items (glass, ornaments, foods, etc.), (3) fake or real jewelry, or (4) lost or stolen items that are not listed upon delivery.',
+      'BN Logistics & Cargo INC offers insurance of 5% of the total gross receipts of claimed contents. The company strongly encourages its clients to purchase insurance for high valued items.',
+    ],
+  },
+  {
+    n: '3.',
+    t: 'BN Logistics & Cargo INC will only reimburse with the maximum $150.00 (included shipping fee) for lost or stolen packages. Only insured packages will be covered 100% of claimed receipts and shipping fees if the packages are lost or stolen only.',
+    b: [
+      'BN Logistics & Cargo INC is NOT reliable for any damages to items and insured packages that occur during transit.',
+    ],
+  },
+]
+
+// ====== Biên nhận GỬI HÀNG (mẫu công ty vận chuyển) ======
+// Mã vạch Code128 từ mã đơn
+function Barcode({ value }) {
+  const ref = useRef(null)
+  useEffect(() => {
+    if (ref.current && value) {
+      try {
+        JsBarcode(ref.current, value, { format: 'CODE128', displayValue: false, height: 38, width: 1.4, margin: 0 })
+      } catch { /* ignore */ }
+    }
+  }, [value])
+  return <svg ref={ref} className="crc-barcode" />
+}
+
+function CargoReceipt({ order, recvAddr }) {
   const c = order.cargo || {}
   const items = c.items || []
   const declTotal = items.reduce((s, it) => s + num(it.qty) * num(it.price), 0)
-  const freightTotal = declTotal > 0 ? declTotal : num(c.freight)
-  const grand = freightTotal + num(c.surcharge) + num(c.insurance)
+  const freight = declTotal > 0 ? declTotal : num(c.freight)
+  const grand = freight + num(c.surcharge) + num(c.insurance)
+  const perLb = num(c.weight) > 0 ? freight / num(c.weight) : 0
+  const descText = items.length > 0 ? items.map((it) => `${it.qty} ${it.product || '—'}`).join(', ') : (c.desc || '')
+  const shipper = `${order.sender.first} ${order.sender.last}`.trim()
+  const consignee = `${order.ben.first} ${order.ben.last}`.trim()
+  const usd = (v) => `$${fmt(v)}`
   return (
-    <>
-      {/* Người gửi / Người nhận */}
-      <table className="rcpt-grid">
-        <thead><tr><th>SHIPPER (Người gửi)</th><th>CONSIGNEE (Người nhận)</th></tr></thead>
-        <tbody><tr>
-          <td>
-            <Line k="Full Name (Họ tên)" v={`${order.sender.first} ${order.sender.last}`.trim()} />
-            <Line k="Address (Địa chỉ)" v={senderAddr} />
-            <Line k="Phone (Điện thoại)" v={order.sender.phone} />
-          </td>
-          <td>
-            <Line k="Full Name (Họ tên)" v={`${order.ben.first} ${order.ben.last}`.trim()} />
-            <Line k="Phone (Điện thoại)" v={order.ben.phone} />
-            <Line k="Address (Địa chỉ)" v={recvAddr} />
-          </td>
-        </tr></tbody>
-      </table>
+    <div className="crc">
+      {/* Header: công ty (trái) + mã vạch/mã đơn/ngày (phải) */}
+      <div className="crc-head">
+        <div className="crc-co">
+          <div className="crc-co-name">BN LOGISTICS &amp; CARGO INC</div>
+          <div className="crc-co-addr">15222 Whitestate St, Westminster, CA 92683<br />Tel: (626) 885-8259</div>
+        </div>
+        <div className="crc-head-right">
+          <Barcode value={order.code} />
+          <div className="crc-code">{order.code}</div>
+          <div className="crc-date">{fdate(order.createdAt)}</div>
+        </div>
+      </div>
 
-      {/* Thông tin lô hàng */}
-      <table className="rcpt-grid rcpt-mt">
-        <thead><tr><th colSpan={2}>SHIPMENT DETAILS (Thông tin hàng hoá)</th></tr></thead>
-        <tbody><tr>
-          <td>
-            <Line k="Service (Dịch vụ)" v={c.service} />
-            <Line k="Pieces (Số kiện)" v={c.pieces} />
-            <Line k="Weight (Trọng lượng, lbs)" v={c.weight} />
-            <Line k="Box (Thùng)" v={c.box} />
-          </td>
-          <td>
-            <Line k="Goods type (Loại hàng)" v={c.goodsType} />
-            <Line k="Reason (Lý do gửi)" v={c.reason} />
-            <Line k="Payment (Thanh toán)" v={c.pay} />
-            <Line k="Description (Mô tả)" v={c.desc} />
-          </td>
-        </tr></tbody>
-      </table>
+      {/* Thân biên nhận: các dòng label:value, ngăn bởi đường kẻ */}
+      <div className="crc-rows">
+        <div className="crc-row"><span><b>Người gửi:</b> {shipper}</span><span><b>Số ĐT:</b> {order.sender.phone}</span></div>
+        <div className="crc-row"><span><b>Người nhận:</b> {consignee}</span><span><b>Số ĐT:</b> {order.ben.phone}</span></div>
+        <div className="crc-full"><b>Địa chỉ:</b> {recvAddr}</div>
+        <div className="crc-full"><b>Chi tiết hàng:</b> {descText}</div>
+        <div className="crc-full"><b>Mô tả hàng:</b> {c.desc}</div>
+        <div className="crc-hr" />
+        <div className="crc-row"><span><b>Loại dịch vụ:</b> {c.service}</span><span><b>Hình thức thanh toán:</b> {c.pay}</span></div>
+        <div className="crc-row3"><span><b>Số kiện:</b> {c.pieces}</span><span><b>Giá cước/lbs:</b> {usd(perLb)}</span><span><b>Trọng lượng (lbs):</b> {c.weight}</span></div>
+        <div className="crc-row"><span><b>Tiền cước:</b> {usd(freight)}</span><span><b>Phụ phí:</b> {usd(num(c.surcharge))}</span></div>
+        <div className="crc-row"><span><b>Tiền hàng:</b> {usd(num(c.goodsValue))}</span><span><b>Bảo hiểm:</b> {usd(num(c.insurance))}</span></div>
+        <div className="crc-total"><b>TỔNG PHÍ: {usd(grand)}</b></div>
 
-      {/* Bảng kê khai hàng hoá */}
-      <table className="rcpt-decl rcpt-mt">
-        <thead><tr>
-          <th>Product (Sản phẩm)</th><th className="c">Qty (SL)</th><th className="r">Unit price (Đơn giá)</th><th className="r">Amount (Thành tiền)</th>
-        </tr></thead>
-        <tbody>
-          {items.length === 0 ? (
-            <tr><td colSpan={4} className="c muted">— Không có sản phẩm kê khai / No declared items —</td></tr>
-          ) : items.map((it, i) => (
-            <tr key={i}>
-              <td>{it.product || '—'}</td>
-              <td className="c">{it.qty}</td>
-              <td className="r">{fmt(num(it.price))}</td>
-              <td className="r">{fmt(num(it.qty) * num(it.price))}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+        {items.length > 0 && (
+          <table className="rcpt-decl rcpt-mt">
+            <thead><tr><th>Sản phẩm</th><th className="c">SL</th><th className="r">Đơn giá</th><th className="r">Thành tiền</th></tr></thead>
+            <tbody>{items.map((it, i) => (
+              <tr key={i}><td>{it.product || '—'}</td><td className="c">{it.qty}</td><td className="r">{usd(num(it.price))}</td><td className="r">{usd(num(it.qty) * num(it.price))}</td></tr>
+            ))}</tbody>
+          </table>
+        )}
 
-      {/* Chi phí */}
-      <table className="rcpt-charges rcpt-mt"><tbody>
-        <tr><td>Total freight (Tổng cước)</td><td className="r">{fmt(freightTotal)} USD</td></tr>
-        <tr><td>Surcharge (Phụ phí)</td><td className="r">{fmt(num(c.surcharge))} USD</td></tr>
-        <tr><td>Insurance (Phí bảo hiểm)</td><td className="r">{fmt(num(c.insurance))} USD</td></tr>
-        <tr><td>Goods value (Tiền hàng)</td><td className="r">{fmt(num(c.goodsValue))} USD</td></tr>
-        <tr className="grand"><td>TOTAL (Tổng cộng)</td><td className="r">{fmt(grand)} USD</td></tr>
-      </tbody></table>
+        {c.allowMsg && (c.msg || '').trim() ? (
+          <div className="crc-msg"><b>Tin nhắn cho người nhận:</b> {c.msg}</div>
+        ) : null}
 
-      {/* Tin nhắn cho người nhận */}
-      {c.allowMsg && (c.msg || '').trim() ? (
-        <div className="rcpt-msg"><b>Message to consignee (Tin nhắn cho người nhận):</b> {c.msg}</div>
-      ) : null}
-    </>
+        <table className="rcpt-signs crc-signs"><tbody><tr>
+          <td><div className="rcpt-sigline" />Chữ ký khách hàng</td>
+          <td><div className="rcpt-sigline" />Chữ ký nhân viên</td>
+        </tr></tbody></table>
+      </div>
+
+      <div className="crc-note">LƯU Ý: KHÔNG THANH TOÁN BẤT KỲ PHÍ NÀO KHI NHẬN HÀNG</div>
+      <div className="crc-note-sub">Cảm ơn quý khách đã sử dụng dịch vụ của BN Logistics &amp; Cargo INC. Mọi ý kiến đóng góp xin liên hệ (626) 885-8259 hoặc kiểm tra tình trạng thùng hàng qua web bnlogistics.us.</div>
+
+      <div className="crc-policy-ttl">POLICY</div>
+      {CARGO_POLICY.map((p, i) => (
+        <div className="crc-policy" key={i}>
+          <b>{p.n}{p.n.endsWith('.') ? '' : ':'}</b> {p.t}
+          {p.b.map((bl, j) => <div className="crc-bullet" key={j}>• {bl}</div>)}
+        </div>
+      ))}
+      <div className="crc-cert">“I certify that this cargo does not contain unauthorized explosives, incendiaries, or other destructive substances or items. I am aware that this endorsement and original signature and other shipping documents will be retained on file for a minimum of 30 calendar days.”</div>
+    </div>
   )
 }
 
@@ -219,26 +254,42 @@ export default function Receipt() {
 
   const isBank = (order.ben.delivery || '').includes('Chuyển khoản')
   const isCargo = order.orderType === 'cargo'
-  const title = isCargo ? 'CARGO RECEIPT' : 'CUSTOMER RECEIPT'
   const senderAddr = [order.sender.addr, order.sender.city, order.sender.state, order.sender.zip].filter(Boolean).join(', ')
   const recvAddr = order.ben.payoutAddr || [order.ben.addr, order.ben.city, order.ben.state || order.ben.province].filter(Boolean).join(', ')
   const parts = { order, isBank, senderAddr, recvAddr }
-  const Body = () => (isCargo ? <CargoParties {...parts} /> : <Parties {...parts} />)
 
+  const actions = (
+    <div className="receipt-actions no-print">
+      <button className="btn btn-ghost" onClick={() => navigate('/search-orders')}>{t('receipt.finish')}</button>
+      <button className="btn btn-ghost" onClick={() => navigate('/create')}>{t('receipt.newOrder')}</button>
+      <button className="btn btn-primary" onClick={() => downloadReceiptPdf({ order })}>Tải / In PDF (1 trang Letter)</button>
+      <button className="btn btn-ghost" onClick={() => window.print()} title="Có thể bị tràn 2 trang trên một số trình duyệt">In bằng trình duyệt</button>
+    </div>
+  )
+
+  // ===== Biên nhận GỬI HÀNG =====
+  if (isCargo) {
+    return (
+      <>
+        {actions}
+        <div className="rcpt-scroll">
+          <div className="rcpt-page" id="receipt-sheet">
+            <CargoReceipt order={order} senderAddr={senderAddr} recvAddr={recvAddr} />
+          </div>
+        </div>
+      </>
+    )
+  }
+
+  // ===== Biên nhận GỬI TIỀN (giữ nguyên) =====
   return (
     <>
-      <div className="receipt-actions no-print">
-        <button className="btn btn-ghost" onClick={() => navigate('/search-orders')}>{t('receipt.finish')}</button>
-        <button className="btn btn-ghost" onClick={() => navigate('/create')}>{t('receipt.newOrder')}</button>
-        <button className="btn btn-primary" onClick={() => downloadReceiptPdf({ order })}>Tải / In PDF (1 trang Letter)</button>
-        <button className="btn btn-ghost" onClick={() => window.print()} title="Có thể bị tràn 2 trang trên một số trình duyệt">In bằng trình duyệt</button>
-      </div>
-
+      {actions}
       <div className="rcpt-scroll">
         <div className="rcpt-page" id="receipt-sheet">
           {/* ===== BẢN CHÍNH ===== */}
-          <Header order={order} title={title} />
-          <Body />
+          <Header order={order} title="CUSTOMER RECEIPT" />
+          <Parties {...parts} />
           <Signs />
 
           {/* ===== ĐIỀU KHOẢN ===== */}
@@ -260,7 +311,7 @@ export default function Receipt() {
             <td><b>Date / Ngày:</b> {fdate(order.createdAt)}</td>
             <td><b>Employee / Nhân viên:</b> {order.employee || '—'}</td>
           </tr></tbody></table>
-          <Body />
+          <Parties {...parts} />
           <Signs />
         </div>
       </div>
