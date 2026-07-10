@@ -177,6 +177,7 @@ function CargoReceipt({ order, recvAddr }) {
           <Barcode value={order.code} />
           <div className="crc-code">{order.code}</div>
           <div className="crc-date">{fdate(order.createdAt)}</div>
+          <div className="crc-emp">Nhân viên nhận đơn: {order.employee || '—'}</div>
         </div>
       </div>
 

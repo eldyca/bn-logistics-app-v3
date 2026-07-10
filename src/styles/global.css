@@ -299,6 +299,7 @@ tr:last-child td{border-bottom:none}
 .crc-barcode{height:38px;display:block;margin-left:auto}
 .crc-code{font-size:15px;font-weight:700;margin-top:2px}
 .crc-date{font-size:11px}
+.crc-emp{font-size:11px;margin-top:1px}
 .crc-rows{border:1px solid #000;padding:13px 14px}
 .crc-row{display:flex;font-size:12.5px;margin-bottom:7px}
 .crc-row3{display:flex;font-size:12.5px;margin-bottom:7px}
