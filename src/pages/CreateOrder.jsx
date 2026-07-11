@@ -21,7 +21,7 @@ const EMPTY = {
   bank: { name: '', account: '', holder: '', branch: '' },
   tx: { send: '0.00', rate: '1.00', cur: 'VND', taxPct: '1', feePct: '3', pay: 'Tiền mặt', memo: '' },
   orderType: 'money', // 'money' = gửi tiền | 'cargo' = gửi hàng
-  cargo: { service: '', pieces: '', desc: '', goodsType: '', weight: '', reason: '', freight: '0.00', goodsValue: '0.00', box: '', surcharge: '0.00', insurance: '0.00', pay: '', items: [], allowMsg: false, msg: '' },
+  cargo: { service: '', pieces: '', desc: '', goodsType: '', weight: '', reason: '', freightPerLb: '0.00', goodsValue: '0.00', box: '', surcharge: '0.00', insurance: '0.00', pay: '', items: [], allowMsg: false, msg: '' },
   employee: '',
   status: 'pending',
 }
@@ -32,7 +32,17 @@ export default function CreateOrder() {
   const { t } = useTranslation()
   const { orders, addOrder, updateOrder } = useOrders()
   const { displayName, username, isAdmin } = useAuth()
-  const me = (displayName || username || '').trim()
+  // Tên hiển thị nhân viên: full_name/display_name (nếu không phải email) -> username -> email
+  const me = (() => {
+    const dn = (displayName || '').trim()
+    const un = (username || '').trim()
+    // Nếu displayName không phải email (không chứa @) -> dùng làm tên
+    if (dn && !dn.includes('@')) return dn
+    // Nếu có username -> dùng username
+    if (un) return un
+    // Cuối cùng: email (nếu chỉ có email)
+    return dn
+  })()
   const editing = Boolean(id)
 
   const [form, setForm] = useState(EMPTY)
@@ -171,6 +181,10 @@ export default function CreateOrder() {
   const updateCargoItem = (i, k, v) => setCargoItems(cargoItems.map((it, idx) => (idx === i ? { ...it, [k]: v } : it)))
   const removeCargoItem = (i) => setCargoItems(cargoItems.filter((_, idx) => idx !== i))
   const cargoDeclareTotal = cargoItems.reduce((s, it) => s + num(it.qty) * num(it.price), 0)
+  // Cargo: tính tiền cước, tổng phí, tổng cước
+  const cargoFreight = num(form.cargo.weight) * num(form.cargo.freightPerLb)
+  const cargoTotalFee = cargoFreight + num(form.cargo.surcharge) + num(form.cargo.insurance)
+  const cargoTotalCost = cargoFreight + num(form.cargo.surcharge) + num(form.cargo.insurance) + cargoDeclareTotal + num(form.cargo.goodsValue)
   const setSenderField = (k, v) => set('sender', k, v)
   const setBenField = (k, v) => set('ben', k, v)
 
@@ -486,11 +500,19 @@ export default function CreateOrder() {
                 <option>Trading (Mua bán)</option>
               </select></div>
             <div className="grid">
-              <div className="field"><label>Giá cước</label>
-                <CurrencyInput value={form.cargo.freight} onChange={(v) => set('cargo', 'freight', v)} unit="USD" /></div>
-              <div className="field"><label>Tiền hàng</label>
-                <CurrencyInput value={form.cargo.goodsValue} onChange={(v) => set('cargo', 'goodsValue', v)} unit="USD" /></div>
+              <div className="field"><label>Giá cước/lbs</label>
+                <CurrencyInput value={form.cargo.freightPerLb} onChange={(v) => set('cargo', 'freightPerLb', v)} unit="USD" /></div>
+              <div className="field"><label>Tiền cước (=trọng lượng×giá cước/lbs)</label>
+                <div style={{ padding: '9px 11px', background: 'var(--bg-soft,#f1f1f4)', borderRadius: '9px' }}><b>{fmt(cargoFreight)} USD</b></div></div>
             </div>
+            <div className="grid">
+              <div className="field"><label>Tổng phí (=tiền cước+phụ phí+bảo hiểm)</label>
+                <div style={{ padding: '9px 11px', background: 'var(--bg-soft,#f1f1f4)', borderRadius: '9px' }}><b>{fmt(cargoTotalFee)} USD</b></div></div>
+              <div className="field"><label>Tổng cước (=tiền cước+phụ phí+bảo hiểm+tiền hàng)</label>
+                <div style={{ padding: '9px 11px', background: 'var(--bg-soft,#f1f1f4)', borderRadius: '9px' }}><b>{fmt(cargoTotalCost)} USD</b></div></div>
+            </div>
+            <div className="field"><label>Tiền hàng</label>
+              <CurrencyInput value={form.cargo.goodsValue} onChange={(v) => set('cargo', 'goodsValue', v)} unit="USD" /></div>
             <div className="grid">
               <div className="field"><label>Box</label>
                 <select value={form.cargo.box} onChange={(e) => set('cargo', 'box', e.target.value)}>
@@ -562,7 +584,7 @@ export default function CreateOrder() {
                 </tbody>
               </table>
             </div>
-            <div className="declare-total">Tổng cước <b>{fmt(cargoDeclareTotal)} USD</b></div>
+            <div className="declare-total">Tổng cước <b>{fmt(cargoTotalCost)} USD</b></div>
 
             <label className="declare-msg-chk">
               <input type="checkbox" checked={!!form.cargo.allowMsg} onChange={(e) => set('cargo', 'allowMsg', e.target.checked)} />
