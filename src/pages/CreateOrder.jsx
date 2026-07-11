@@ -31,18 +31,10 @@ export default function CreateOrder() {
   const navigate = useNavigate()
   const { t } = useTranslation()
   const { orders, addOrder, updateOrder } = useOrders()
-  const { displayName, username, isAdmin } = useAuth()
-  // Tên hiển thị nhân viên: full_name/display_name (nếu không phải email) -> username -> email
-  const me = (() => {
-    const dn = (displayName || '').trim()
-    const un = (username || '').trim()
-    // Nếu displayName không phải email (không chứa @) -> dùng làm tên
-    if (dn && !dn.includes('@')) return dn
-    // Nếu có username -> dùng username
-    if (un) return un
-    // Cuối cùng: email (nếu chỉ có email)
-    return dn
-  })()
+  const { displayName, isAdmin } = useAuth()
+  // "Nhân viên nhận đơn" = TÊN NHÂN VIÊN của tài khoản đang đăng nhập.
+  // Không dùng username/email — nếu tài khoản chưa đặt tên thì ô để trống.
+  const me = (displayName || '').trim()
   const editing = Boolean(id)
 
   const [form, setForm] = useState(EMPTY)
@@ -453,10 +445,10 @@ export default function CreateOrder() {
           <div className="field full tight"><label>{t('order.memo')}</label>
             <textarea value={form.tx.memo} onChange={(e) => set('tx', 'memo', e.target.value)} /></div>
           <div className="field full tight"><label>{t('order.employee')} <span className="r">*</span></label>
-            <input value={form.employee} onChange={(e) => setForm((f) => ({ ...f, employee: e.target.value }))}
-              placeholder={t('order.employee')} readOnly={!isAdmin}
-              style={!isAdmin ? { background: 'var(--bg-soft,#f1f1f4)', cursor: 'not-allowed' } : undefined}
-              title={!isAdmin ? 'Tự lấy theo tài khoản đang đăng nhập' : undefined} /></div>
+            <input value={form.employee || me} readOnly
+              placeholder={t('order.employee')}
+              style={{ background: 'var(--bg-soft,#f1f1f4)', cursor: 'not-allowed' }}
+              title="Tự lấy tên nhân viên của tài khoản đang đăng nhập" /></div>
         </div>
       </div>
       )}

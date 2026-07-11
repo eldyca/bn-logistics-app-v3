@@ -73,7 +73,7 @@ export async function getMembership() {
     displayName = prof.display_name || prof.full_name || ''
     username = prof.username || ''
   }
-  if (!displayName) displayName = username || user.email || ''
+  // displayName = TÊN NHÂN VIÊN THẬT (display_name/full_name). Không fallback username/email — nếu chưa đặt tên thì để trống.
 
   clearCompanyCache()
   _companyId = data.company_id

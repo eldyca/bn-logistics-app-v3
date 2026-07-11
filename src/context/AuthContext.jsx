@@ -72,7 +72,7 @@ export function AuthProvider({ children }) {
         role: membership?.role || null,
         isSuperAdmin: membership?.isSuperAdmin || false,
         isAdmin: membership?.role === 'admin' || membership?.isSuperAdmin || false,
-        displayName: membership?.displayName || session?.user?.email || '',
+        displayName: membership?.displayName || '',
         username: membership?.username || '',
         memberLoading,
         signIn,
