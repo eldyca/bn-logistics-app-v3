@@ -31,7 +31,8 @@ export default function CreateOrder() {
   const navigate = useNavigate()
   const { t } = useTranslation()
   const { orders, addOrder, updateOrder } = useOrders()
-  const { displayName, isAdmin } = useAuth()
+  const { displayName, username, isAdmin } = useAuth()
+  const me = (displayName || username || '').trim()
   const editing = Boolean(id)
 
   const [form, setForm] = useState(EMPTY)
@@ -40,8 +41,8 @@ export default function CreateOrder() {
   // Tạo đơn mới: tự điền "Nhân viên nhận đơn" = tên tài khoản đang đăng nhập
   useEffect(() => {
     if (editing) return
-    if (displayName) setForm((f) => (f.employee ? f : { ...f, employee: displayName }))
-  }, [displayName, editing])
+    if (me) setForm((f) => (f.employee ? f : { ...f, employee: me }))
+  }, [me, editing])
 
   // Gợi ý người gửi/người nhận cũ theo Tên / Họ / Số điện thoại (lấy từ đơn đã lưu)
   const [sSug, setSSug] = useState([])
@@ -194,7 +195,7 @@ export default function CreateOrder() {
     if (!form.ben.phone.trim()) miss.push(t('order.receiverInfo'))
     if (!form.ben.first.trim() || !form.ben.last.trim()) miss.push(t('order.firstName'))
     if (isMoney && num(form.tx.send) <= 0) miss.push(t('order.sendAmount'))
-    const employeeName = (form.employee || '').trim() || (displayName || '').trim()
+    const employeeName = (form.employee || '').trim() || me
     if (!employeeName) miss.push(t('order.employee'))
     if (miss.length) {
       alert(t('order.fillRequired') + miss.join(', '))
@@ -520,7 +521,7 @@ export default function CreateOrder() {
                   <option value="cancelled">{t('status.cancelled')}</option>
                 </select></div>
               <div className="field"><label>{t('order.employee')} <span className="r">*</span></label>
-                <input value={form.employee} readOnly
+                <input value={form.employee || me} readOnly
                   placeholder={t('order.employee')}
                   style={{ background: 'var(--bg-soft,#f1f1f4)', cursor: 'not-allowed' }}
                   title="Tự lấy theo tài khoản đang đăng nhập" /></div>
