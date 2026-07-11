@@ -520,10 +520,10 @@ export default function CreateOrder() {
                   <option value="cancelled">{t('status.cancelled')}</option>
                 </select></div>
               <div className="field"><label>{t('order.employee')} <span className="r">*</span></label>
-                <input value={form.employee} onChange={(e) => setForm((f) => ({ ...f, employee: e.target.value }))}
-                  placeholder={t('order.employee')} readOnly={!isAdmin}
-                  style={!isAdmin ? { background: 'var(--bg-soft,#f1f1f4)', cursor: 'not-allowed' } : undefined}
-                  title={!isAdmin ? 'Tự lấy theo tài khoản đang đăng nhập' : undefined} /></div>
+                <input value={form.employee} readOnly
+                  placeholder={t('order.employee')}
+                  style={{ background: 'var(--bg-soft,#f1f1f4)', cursor: 'not-allowed' }}
+                  title="Tự lấy theo tài khoản đang đăng nhập" /></div>
             </div>
           </div>
         </div>

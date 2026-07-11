@@ -73,7 +73,7 @@ export async function getMembership() {
     displayName = prof.display_name || prof.full_name || ''
     username = prof.username || ''
   }
-  if (!displayName) displayName = user.email || ''
+  if (!displayName) displayName = username || user.email || ''
 
   clearCompanyCache()
   _companyId = data.company_id
