@@ -36,14 +36,36 @@ export default function Company() {
   const [msg, setMsg] = useState(null)
   const [editingUser, setEditingUser] = useState(null) // State cho chỉnh sửa tên
   const [editingName, setEditingName] = useState('') // Tên đang edit
+  const [savingName, setSavingName] = useState(false) // Loading state khi save tên
 
   const load = useCallback(async () => {
     try {
+      console.log('[LOAD] Starting to load members...')
       const ms = await listMembers()
+      console.log('[LOAD] Members fetched:', ms.length, 'members')
       setMembers(ms)
+      
+      console.log('[LOAD] Fetching profiles for', ms.length, 'members...')
       const profs = await listMemberProfiles(ms.map((m) => m.user_id))
+      console.log('[LOAD] Profiles fetched:', Object.keys(profs).length, 'profiles')
+      
+      // Verify profiles có dữ liệu
+      let validCount = 0
+      for (const userId in profs) {
+        const p = profs[userId]
+        if (p.full_name || p.display_name) {
+          validCount++
+          console.log(`[LOAD VERIFY] ${userId}: "${p.display_name || p.full_name}"`)
+        }
+      }
+      console.log(`[LOAD VERIFY] ${validCount}/${Object.keys(profs).length} members have names`)
+      
+      // Update state
       setProfiles(profs)
+      
+      console.log('[LOAD] Done loading')
     } catch (e) {
+      console.error('[LOAD ERROR]', e)
       setMsg(e.message || String(e))
     }
   }, [])
@@ -295,23 +317,72 @@ export default function Company() {
               </button>
               <button 
                 className="searchbtn" 
+                disabled={savingName}
                 onClick={async () => {
                   if (!editingName.trim()) {
                     setMsg('Tên nhân viên không được để trống')
                     return
                   }
+                  if (!editingUser) {
+                    setMsg('Lỗi: Không tìm thấy nhân viên để cập nhật')
+                    return
+                  }
+                  
+                  setSavingName(true)
+                  setMsg(null)
+                  
                   try {
-                    await updateMemberName(editingUser, editingName.trim(), editingName.trim())
+                    const newName = editingName.trim()
+                    
+                    // 1. Log bắt đầu
+                    console.log(`\n========== UPDATE MEMBER NAME ==========`)
+                    console.log(`Editing user: ${editingUser}`)
+                    console.log(`New name: ${newName}`)
+                    console.log(`Current profiles before update:`, profiles[editingUser])
+                    
+                    // 2. Update database
+                    console.log('[STEP 1] Calling updateMemberName...')
+                    await updateMemberName(editingUser, newName, newName)
+                    console.log('[STEP 1] ✓ updateMemberName completed')
+                    
+                    // 3. Wait extra time để Supabase sync (500ms)
+                    console.log('[STEP 2] Waiting 1000ms for Supabase sync...')
+                    await new Promise(resolve => setTimeout(resolve, 1000))
+                    console.log('[STEP 2] ✓ Wait completed')
+                    
+                    // 4. Reload danh sách
+                    console.log('[STEP 3] Calling load() to fetch fresh data...')
+                    await load()
+                    console.log('[STEP 3] ✓ load() completed')
+                    
+                    // 5. Verify data updated
+                    console.log(`[VERIFY] Profiles after load:`, profiles)
+                    console.log(`[VERIFY] Updated member data:`, profiles[editingUser])
+                    
+                    // 6. Close modal & show success
+                    console.log('[STEP 4] Closing modal...')
                     setEditingUser(null)
                     setEditingName('')
-                    await load()
-                    setMsg('Cập nhật tên thành công')
+                    setSavingName(false)
+                    
+                    console.log('[SUCCESS] Update completed!')
+                    console.log(`==========================================\n`)
+                    
+                    setMsg('✓ Cập nhật tên nhân viên thành công')
+                    
+                    // Auto-hide message after 3s
+                    setTimeout(() => setMsg(null), 3000)
                   } catch (e) {
-                    setMsg(e.message || String(e))
+                    setSavingName(false)
+                    const errMsg = e.message || String(e)
+                    console.error('\n[ERROR] Update failed:', errMsg)
+                    console.error('[ERROR STACK]:', e)
+                    console.error(`==========================================\n`)
+                    setMsg(`❌ Lỗi: ${errMsg}`)
                   }
                 }}
               >
-                Lưu
+                {savingName ? '⏳ Đang lưu...' : 'Lưu'}
               </button>
             </div>
           </div>

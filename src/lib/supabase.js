@@ -168,17 +168,42 @@ export async function adminCreateMember({ identifier, fullName, password, role =
 export async function listMemberProfiles(userIds) {
   if (!userIds || !userIds.length) return {}
   
-  // Lấy profile (tên, username)
-  const { data: profiles } = await supabase
-    .from('user_profiles').select('user_id, full_name, display_name, username').in('user_id', userIds)
+  console.log('[DB] Fetching profiles for users:', userIds)
+  
+  // Force refresh: thêm timestamp vào query để bypass cache
+  const timestamp = Date.now()
+  
+  // Lấy profile (tên, username) - with cache busting
+  const { data: profiles, error: profileError } = await supabase
+    .from('user_profiles')
+    .select('user_id, full_name, display_name, username, updated_at')
+    .in('user_id', userIds)
+    .order('updated_at', { ascending: false }) // Force fresh data
+  
+  if (profileError) {
+    console.error('[DB ERROR] Profile fetch failed:', profileError)
+    throw profileError
+  }
+  
+  console.log('[DB] Profiles fetched (timestamp=' + timestamp + '):', profiles)
   
   // Lấy email từ users table
-  const { data: users } = await supabase
-    .from('users').select('id, email').in('id', userIds)
+  const { data: users, error: userError } = await supabase
+    .from('users')
+    .select('id, email, updated_at')
+    .in('id', userIds)
+  
+  if (userError) {
+    console.error('[DB ERROR] User fetch failed:', userError)
+    throw userError
+  }
+  
+  console.log('[DB] Users fetched:', users)
   
   // Map dữ liệu
   const map = {}
   for (const p of profiles || []) {
+    console.log(`[MAP] Profile ${p.user_id}: full_name="${p.full_name}", display_name="${p.display_name}"`)
     map[p.user_id] = p
   }
   // Thêm email vào map
@@ -189,6 +214,8 @@ export async function listMemberProfiles(userIds) {
       map[u.id] = { user_id: u.id, email: u.email }
     }
   }
+  
+  console.log('[DB] Final profile map:', map)
   return map
 }
 
@@ -236,11 +263,54 @@ export async function removeMember(userId) {
 
 // Admin update tên nhân viên
 export async function updateMemberName(userId, fullName, displayName) {
-  const { error } = await supabase
+  console.log(`[DB] Updating user_profiles: user_id=${userId}, full_name=${fullName}, display_name=${displayName}`)
+  
+  // 1. Kiểm tra user_id hợp lệ
+  if (!userId) throw new Error('User ID không hợp lệ')
+  if (!fullName || !displayName) throw new Error('Tên không được để trống')
+  
+  // 2. Cập nhật database
+  const { data, error, status } = await supabase
     .from('user_profiles')
     .update({ full_name: fullName, display_name: displayName })
     .eq('user_id', userId)
-  if (error) throw error
+    .select()
+  
+  if (error) {
+    console.error('[DB ERROR]', error)
+    throw new Error(`Cập nhật database thất bại: ${error.message}`)
+  }
+  
+  console.log(`[DB] Update status: ${status}, data:`, data)
+  
+  // 3. Xác nhận update thành công
+  if (!data || data.length === 0) {
+    throw new Error('Cập nhật không thành công - không tìm thấy user')
+  }
+  
+  console.log('[DB] Update verified:', data[0])
+  
+  // 4. Verify update đúng bằng cách fetch lại ngay
+  console.log('[DB] Verifying update by fetching...')
+  const { data: verify, error: verifyError } = await supabase
+    .from('user_profiles')
+    .select('user_id, full_name, display_name')
+    .eq('user_id', userId)
+    .single()
+  
+  if (verifyError) {
+    console.error('[DB ERROR] Verification failed:', verifyError)
+  } else {
+    console.log('[DB] Verification passed:', verify)
+    if (verify.full_name !== fullName || verify.display_name !== displayName) {
+      console.warn('[DB WARN] Verification mismatch! Expected:', { fullName, displayName }, 'Got:', { full_name: verify.full_name, display_name: verify.display_name })
+    }
+  }
+  
+  // 5. Wait để Supabase sync toàn bộ
+  await new Promise(resolve => setTimeout(resolve, 800))
+  
+  return data[0]
 }
 
 // Super Admin update tên của chính mình
