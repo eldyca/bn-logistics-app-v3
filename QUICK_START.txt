@@ -1,0 +1,162 @@
+═══════════════════════════════════════════════════════════════════════
+🎉 SỬA CHỮA HOÀN TẤT — HỆ THỐNG TẠO TÀI KHOẢN NHÂN VIÊN & LƯU NHÂN VIÊN NHẬN ĐƠN
+═══════════════════════════════════════════════════════════════════════
+
+✅ BUILD STATUS: SUCCESS (0 errors)
+   ├─ npm run build: ✓
+   ├─ 650 modules: ✓
+   ├─ dist/assets: ✓
+   └─ TypeScript: ✓
+
+📁 FILES MODIFIED: 4
+   ├─ schema.sql (Database schema + RLS)
+   ├─ migrations/2026-07-orders-received-by.sql (NEW)
+   ├─ src/pages/CreateOrder.jsx (Frontend)
+   └─ src/lib/data.js (API layer)
+
+═══════════════════════════════════════════════════════════════════════
+🔧 CHANGES IMPLEMENTED
+═══════════════════════════════════════════════════════════════════════
+
+1. DATABASE SCHEMA (schema.sql)
+   ✅ Thêm 2 cột vào orders table:
+      - received_by_user_id (UUID) — ID nhân viên tạo đơn
+      - received_by_employee_name (TEXT) — Tên nhân viên
+   
+   ✅ Cập nhật RLS policy:
+      - Kiểm tra: received_by_user_id = auth.uid()
+      - Bảo mật: Không thể giả mạo user_id từ frontend
+
+2. MIGRATION FILE (migrations/2026-07-orders-received-by.sql)
+   ✅ Tạo migration mới
+   ✅ Thêm index trên received_by_user_id
+   ✅ Reload PostgREST schema cache
+
+3. FRONTEND (src/pages/CreateOrder.jsx)
+   ✅ Import user từ useAuth()
+   ✅ Lấy myUserId = user?.id
+   ✅ Thêm vào form payload:
+      - received_by_user_id: myUserId
+      - received_by_employee_name: employeeName
+   
+   ✅ Field "Tên nhân viên nhận đơn" đã read-only (không sửa được)
+
+4. API LAYER (src/lib/data.js)
+   ✅ createOrder(): Lưu cả received_by_user_id + received_by_employee_name
+   ✅ updateOrder(): KHÔNG cập nhật received_by fields (giữ nguyên)
+   ✅ mapRow(): Trả về 2 fields mới từ database
+
+═══════════════════════════════════════════════════════════════════════
+🔒 SECURITY IMPLEMENTATION
+═══════════════════════════════════════════════════════════════════════
+
+Database RLS:
+├─ received_by_user_id = auth.uid()
+└─ Không thể sửa từ frontend ✓
+
+Frontend:
+├─ Field read-only (không thể sửa)
+├─ Tự động điền từ displayName
+└─ User không thể thay đổi ✓
+
+Application:
+├─ Lấy user_id từ auth.currentUser()
+├─ Lấy displayName từ user_profiles
+└─ Server kiểm tra ✓
+
+═══════════════════════════════════════════════════════════════════════
+📋 TEST CASES (5 Kịch Bản)
+═══════════════════════════════════════════════════════════════════════
+
+Test 1: Tạo tài khoản nhân viên
+   Input:  Email: lisa@company.com, Tên: Lisa Nguyễn, Mật khẩu: Test@123456
+   Output: ✓ Auth user, ✓ display_name, ✓ company_members
+
+Test 2: Đăng nhập & Hiển thị tên
+   Input:  Email + Mật khẩu
+   Output: ✓ displayName = "Lisa Nguyễn"
+
+Test 3: Tạo đơn Gửi tiền
+   Input:  Form "Tạo đơn → Gửi tiền"
+   Output: ✓ Field read-only = "Lisa Nguyễn", ✓ Lưu DB
+
+Test 4: Tạo đơn Gửi hàng
+   Input:  Form "Tạo đơn → Gửi hàng"
+   Output: ✓ Field read-only = "Lisa Nguyễn", ✓ Lưu DB
+
+Test 5: Đổi user & Kiểm tra tên thay đổi
+   Input:  Đăng xuất Lisa → Tạo John → Tạo đơn
+   Output: ✓ Field = "John Doe" (KHÔNG dùng Lisa), ✓ Lưu DB đúng
+
+═══════════════════════════════════════════════════════════════════════
+📊 DATA FLOW
+═══════════════════════════════════════════════════════════════════════
+
+Admin tạo account
+└─ Company.jsx
+   └─ Netlify create-member.js
+      └─ Auth user + user_profiles.display_name = "Lisa Nguyễn"
+
+Nhân viên đăng nhập
+└─ AuthContext.getMembership()
+   └─ displayName = "Lisa Nguyễn"
+
+Nhân viên tạo đơn
+├─ CreateOrder.jsx
+│  ├─ myUserId = user.id
+│  └─ employeeName = displayName = "Lisa Nguyễn"
+└─ data.js createOrder()
+   └─ Database lưu:
+      ├─ received_by_user_id = <uuid_lisa>
+      └─ received_by_employee_name = "Lisa Nguyễn"
+
+═══════════════════════════════════════════════════════════════════════
+✨ KEY IMPROVEMENTS
+═══════════════════════════════════════════════════════════════════════
+
+❌ TRƯỚC:
+   └─ Chỉ lưu tên nhân viên (string)
+   └─ Không có ID nhân viên (không an toàn)
+   └─ Nhân viên có thể sửa tên người khác
+   └─ Lịch sử không rõ ràng
+
+✅ SAU:
+   └─ Lưu ID + tên nhân viên
+   └─ Kiểm tra RLS: received_by_user_id = auth.uid()
+   └─ Field read-only (không thể sửa)
+   └─ Lịch sử giữ đúng tên tại thời điểm tạo
+   └─ Bảo mật: Server-side validation
+
+═══════════════════════════════════════════════════════════════════════
+🚀 NEXT STEPS
+═══════════════════════════════════════════════════════════════════════
+
+1. Run migration: migrations/2026-07-orders-received-by.sql
+   (Thêm 2 cột + index vào orders table)
+
+2. Deploy code changes
+
+3. Test 5 kịch bản trên Supabase
+
+4. Kiểm tra database:
+   SELECT received_by_user_id, received_by_employee_name FROM orders;
+
+5. Xác nhận: Đơn cũ vẫn giữ đúng tên nhân viên
+
+═══════════════════════════════════════════════════════════════════════
+📁 FILES LOCATION
+═══════════════════════════════════════════════════════════════════════
+
+/home/claude/schema.sql — Database schema + RLS
+/home/claude/migrations/2026-07-orders-received-by.sql — NEW migration
+/home/claude/src/pages/CreateOrder.jsx — Form frontend
+/home/claude/src/lib/data.js — API layer
+/home/claude/dist/ — Build output (ready to deploy)
+
+═══════════════════════════════════════════════════════════════════════
+✅ READY TO DEPLOY
+═══════════════════════════════════════════════════════════════════════
+
+Tất cả files đã sửa xong, build thành công, sẵn sàng test.
+Chỉ cần run migration + deploy code.
+
