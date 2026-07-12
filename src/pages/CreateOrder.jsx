@@ -8,6 +8,8 @@ import AddressFields from '../components/AddressFields'
 import PayoutAddress from '../components/PayoutAddress'
 import CurrencyInput from '../components/CurrencyInput'
 import { VN_BANKS } from '../lib/banks'
+// Import user để lấy ID
+
 
 // Nhóm hàng cho bảng Kê khai (tạm — chờ danh sách chính thức từ khách)
 const NHOM_HANG = ['Thực phẩm khô', 'Quần áo', 'Mỹ phẩm', 'Điện tử', 'Thuốc / Vitamin', 'Đồ gia dụng', 'Khác']
@@ -31,10 +33,11 @@ export default function CreateOrder() {
   const navigate = useNavigate()
   const { t } = useTranslation()
   const { orders, addOrder, updateOrder } = useOrders()
-  const { displayName, isAdmin } = useAuth()
+  const { user, displayName, isAdmin } = useAuth()
   // "Nhân viên nhận đơn" = TÊN NHÂN VIÊN của tài khoản đang đăng nhập.
   // Không dùng username/email — nếu tài khoản chưa đặt tên thì ô để trống.
   const me = (displayName || '').trim()
+  const myUserId = user?.id || null
   const editing = Boolean(id)
 
   const [form, setForm] = useState(EMPTY)
@@ -222,6 +225,8 @@ export default function CreateOrder() {
         pay: form.tx.pay, total: computed.total, memo: form.tx.memo.trim(),
       },
       employee: employeeName,
+      received_by_user_id: myUserId,
+      received_by_employee_name: employeeName,
     }
     setBusy(true)
     try {

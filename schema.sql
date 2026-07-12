@@ -311,7 +311,11 @@ drop policy if exists orders_owner on public.orders;
 drop policy if exists orders_company on public.orders;
 create policy orders_company on public.orders
   for all using (company_id = public.current_company_id())
-  with check (company_id = public.current_company_id() and user_id = auth.uid());
+  with check (
+    company_id = public.current_company_id() 
+    and user_id = auth.uid()
+    and received_by_user_id = auth.uid()
+  );
 
 drop policy if exists transactions_owner on public.transactions;
 drop policy if exists transactions_company on public.transactions;
@@ -394,5 +398,13 @@ alter table public.orders add column if not exists total_amount     numeric(18,2
 
 -- Nạp lại schema cache cho PostgREST sau khi thêm cột
 alter table public.orders add column if not exists employee text;
+
+-- =====================================================================
+-- 2026-07: Thêm received_by_user_id + received_by_employee_name
+-- (lưu ID nhân viên + tên nhân viên tại thời điểm tạo đơn)
+-- =====================================================================
+alter table public.orders add column if not exists received_by_user_id uuid references auth.users(id) on delete set null;
+alter table public.orders add column if not exists received_by_employee_name text;
+create index if not exists orders_received_by_user_idx on public.orders(received_by_user_id);
 
 notify pgrst, 'reload schema';

@@ -100,6 +100,8 @@ function mapRow(row) {
       }
     })(),
     employee: row.employee || '',
+    received_by_user_id: row.received_by_user_id || null,
+    received_by_employee_name: row.received_by_employee_name || '',
   }
 }
 
@@ -194,6 +196,8 @@ export async function createOrder(data) {
     tax_amount: data.tx.tax, transaction_fee_amount: data.tx.fee,
     total_amount: data.tx.total,
     employee: data.employee || null,
+    received_by_user_id: data.received_by_user_id || user_id,
+    received_by_employee_name: data.received_by_employee_name || null,
     order_type: data.orderType || 'money',
     cargo: data.cargo || null,
   })
@@ -248,6 +252,7 @@ export async function updateOrder(id, data) {
     tax_amount: data.tx.tax, transaction_fee_amount: data.tx.fee,
     total_amount: data.tx.total,
     employee: data.employee || null,
+    // Không cập nhật received_by_user_id/received_by_employee_name — giữ nguyên tại khi tạo
     order_type: data.orderType || 'money',
     cargo: data.cargo || null,
   }, 'id', id)
