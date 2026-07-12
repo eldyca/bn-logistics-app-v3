@@ -342,8 +342,19 @@ export default function Company() {
                     
                     // 2. Update database
                     console.log('[STEP 1] Calling updateMemberName...')
-                    await updateMemberName(editingUser, newName, newName)
-                    console.log('[STEP 1] ✓ updateMemberName completed')
+                    const updatedProfile = await updateMemberName(editingUser, newName, newName)
+                    console.log('[STEP 1] ✓ updateMemberName completed', updatedProfile)
+
+                    // Hiển thị tên mới ngay lập tức, không phải chờ reload.
+                    setProfiles((previous) => ({
+                      ...previous,
+                      [editingUser]: {
+                        ...(previous[editingUser] || {}),
+                        user_id: editingUser,
+                        full_name: newName,
+                        display_name: newName,
+                      },
+                    }))
                     
                     // 3. Wait extra time để Supabase sync (500ms)
                     console.log('[STEP 2] Waiting 1000ms for Supabase sync...')

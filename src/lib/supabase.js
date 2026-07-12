@@ -164,77 +164,28 @@ export async function adminCreateMember({ identifier, fullName, password, role =
   return out
 }
 
-// Danh sách thành viên kèm tên/username từ user_profiles + email từ users
+// Danh sách thành viên kèm tên/username/email qua RPC SECURITY DEFINER.
+// RPC này chỉ trả về thành viên cùng công ty mà admin được phép xem,
+// nên tên vẫn hiển thị đúng khi RLS của user_profiles đang bật.
 export async function listMemberProfiles(userIds) {
-  if (!userIds || !userIds.length) return {}
-  
-  console.log('[DB] ===== listMemberProfiles START =====')
-  console.log('[DB] Fetching profiles for users:', userIds)
-  
-  // Fetch toàn bộ columns để debug
-  const { data: profiles, error: profileError } = await supabase
-    .from('user_profiles')
-    .select('*')  // Lấy TẤT CẢ columns để debug
-    .in('user_id', userIds)
-  
-  console.log('[DB] Query Error:', profileError)
-  console.log('[DB] Raw Profiles Data:', profiles)
-  console.log('[DB] Profiles Count:', profiles ? profiles.length : 0)
-  
-  if (profileError) {
-    console.error('[DB ERROR] Profile fetch failed:', profileError)
-    console.error('[DB ERROR] This might be RLS policy issue!')
-    throw profileError
-  }
-  
-  if (!profiles || profiles.length === 0) {
-    console.warn('[DB WARN] No profiles returned! Possible RLS blocking.')
-    console.warn('[DB WARN] Check if Super Admin can SELECT from user_profiles')
-    return {}
-  }
-  
-  // Log từng profile
-  profiles.forEach(p => {
-    console.log(`[DB] Profile: user_id="${p.user_id}", full_name="${p.full_name}", display_name="${p.display_name}", username="${p.username}"`)
+  if (!Array.isArray(userIds) || userIds.length === 0) return {}
+
+  const cleanIds = [...new Set(userIds.filter(Boolean))]
+  if (cleanIds.length === 0) return {}
+
+  const { data, error } = await supabase.rpc('list_member_profiles_secure', {
+    p_user_ids: cleanIds,
   })
-  
-  // Lấy email từ users table
-  console.log('[DB] Fetching emails from users table...')
-  const { data: users, error: userError } = await supabase
-    .from('users')
-    .select('id, email')
-    .in('id', userIds)
-  
-  console.log('[DB] Users Query Error:', userError)
-  console.log('[DB] Raw Users Data:', users)
-  
-  if (userError) {
-    console.error('[DB ERROR] User fetch failed:', userError)
-    throw userError
+
+  if (error) {
+    console.error('[listMemberProfiles] RPC error:', error)
+    throw new Error(`Không tải được tên thành viên: ${error.message}`)
   }
-  
-  // Map dữ liệu
+
   const map = {}
-  for (const p of profiles || []) {
-    console.log(`[MAP] Adding profile: ${p.user_id} → full_name="${p.full_name}"`)
-    map[p.user_id] = p
+  for (const profile of data || []) {
+    map[profile.user_id] = profile
   }
-  
-  // Thêm email vào map
-  for (const u of users || []) {
-    if (map[u.id]) {
-      map[u.id].email = u.email
-      console.log(`[MAP] Added email for ${u.id}: ${u.email}`)
-    } else {
-      map[u.id] = { user_id: u.id, email: u.email }
-    }
-  }
-  
-  console.log('[DB] ===== FINAL PROFILES MAP =====')
-  console.log('[DB] Map Keys:', Object.keys(map))
-  console.log('[DB] Full Map:', map)
-  console.log('[DB] ===== listMemberProfiles END =====')
-  
   return map
 }
 
