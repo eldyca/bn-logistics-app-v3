@@ -257,7 +257,18 @@ drop policy if exists profiles_owner on public.user_profiles;
 create policy profiles_owner on public.user_profiles
   for all using (user_id = auth.uid()) with check (user_id = auth.uid());
 
--- Admin của công ty có thể update tên nhân viên
+-- Admin của công ty có thể select và update tên nhân viên
+drop policy if exists profiles_admin_select on public.user_profiles;
+create policy profiles_admin_select on public.user_profiles
+  for select using (
+    exists (
+      select 1 from public.company_members cm1
+      join public.company_members cm2 on cm1.company_id = cm2.company_id
+      where cm1.user_id = auth.uid() and cm1.role = 'admin'
+        and cm2.user_id = user_profiles.user_id
+    )
+  );
+
 drop policy if exists profiles_admin_update on public.user_profiles;
 create policy profiles_admin_update on public.user_profiles
   for update using (

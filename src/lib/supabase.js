@@ -168,54 +168,73 @@ export async function adminCreateMember({ identifier, fullName, password, role =
 export async function listMemberProfiles(userIds) {
   if (!userIds || !userIds.length) return {}
   
+  console.log('[DB] ===== listMemberProfiles START =====')
   console.log('[DB] Fetching profiles for users:', userIds)
   
-  // Force refresh: thêm timestamp vào query để bypass cache
-  const timestamp = Date.now()
-  
-  // Lấy profile (tên, username) - with cache busting
+  // Fetch toàn bộ columns để debug
   const { data: profiles, error: profileError } = await supabase
     .from('user_profiles')
-    .select('user_id, full_name, display_name, username, updated_at')
+    .select('*')  // Lấy TẤT CẢ columns để debug
     .in('user_id', userIds)
-    .order('updated_at', { ascending: false }) // Force fresh data
+  
+  console.log('[DB] Query Error:', profileError)
+  console.log('[DB] Raw Profiles Data:', profiles)
+  console.log('[DB] Profiles Count:', profiles ? profiles.length : 0)
   
   if (profileError) {
     console.error('[DB ERROR] Profile fetch failed:', profileError)
+    console.error('[DB ERROR] This might be RLS policy issue!')
     throw profileError
   }
   
-  console.log('[DB] Profiles fetched (timestamp=' + timestamp + '):', profiles)
+  if (!profiles || profiles.length === 0) {
+    console.warn('[DB WARN] No profiles returned! Possible RLS blocking.')
+    console.warn('[DB WARN] Check if Super Admin can SELECT from user_profiles')
+    return {}
+  }
+  
+  // Log từng profile
+  profiles.forEach(p => {
+    console.log(`[DB] Profile: user_id="${p.user_id}", full_name="${p.full_name}", display_name="${p.display_name}", username="${p.username}"`)
+  })
   
   // Lấy email từ users table
+  console.log('[DB] Fetching emails from users table...')
   const { data: users, error: userError } = await supabase
     .from('users')
-    .select('id, email, updated_at')
+    .select('id, email')
     .in('id', userIds)
+  
+  console.log('[DB] Users Query Error:', userError)
+  console.log('[DB] Raw Users Data:', users)
   
   if (userError) {
     console.error('[DB ERROR] User fetch failed:', userError)
     throw userError
   }
   
-  console.log('[DB] Users fetched:', users)
-  
   // Map dữ liệu
   const map = {}
   for (const p of profiles || []) {
-    console.log(`[MAP] Profile ${p.user_id}: full_name="${p.full_name}", display_name="${p.display_name}"`)
+    console.log(`[MAP] Adding profile: ${p.user_id} → full_name="${p.full_name}"`)
     map[p.user_id] = p
   }
+  
   // Thêm email vào map
   for (const u of users || []) {
     if (map[u.id]) {
       map[u.id].email = u.email
+      console.log(`[MAP] Added email for ${u.id}: ${u.email}`)
     } else {
       map[u.id] = { user_id: u.id, email: u.email }
     }
   }
   
-  console.log('[DB] Final profile map:', map)
+  console.log('[DB] ===== FINAL PROFILES MAP =====')
+  console.log('[DB] Map Keys:', Object.keys(map))
+  console.log('[DB] Full Map:', map)
+  console.log('[DB] ===== listMemberProfiles END =====')
+  
   return map
 }
 
@@ -263,73 +282,91 @@ export async function removeMember(userId) {
 
 // Admin update tên nhân viên
 export async function updateMemberName(userId, fullName, displayName) {
-  console.log(`[DB] Updating user_profiles: user_id=${userId}, full_name=${fullName}, display_name=${displayName}`)
+  console.log(`\n========== updateMemberName START ==========`)
+  console.log(`[UPDATE] user_id: ${userId}`)
+  console.log(`[UPDATE] full_name: ${fullName}`)
+  console.log(`[UPDATE] display_name: ${displayName}`)
   
-  // 1. Kiểm tra user_id hợp lệ
+  // 1. Kiểm tra input
   if (!userId) throw new Error('User ID không hợp lệ')
   if (!fullName || !displayName) throw new Error('Tên không được để trống')
   
-  // 2. Kiểm tra user tồn tại trước
-  console.log('[DB] Checking if user exists...')
+  // 2. Check user tồn tại trước
+  console.log(`[CHECK] Checking if user exists...`)
   const { data: userExists, error: checkError } = await supabase
     .from('user_profiles')
-    .select('user_id')
+    .select('user_id, full_name, display_name')
     .eq('user_id', userId)
   
+  console.log(`[CHECK] Error:`, checkError)
+  console.log(`[CHECK] Data:`, userExists)
+  
   if (checkError) {
-    console.error('[DB ERROR] Check failed:', checkError)
+    console.error(`[ERROR] Check query failed:`, checkError)
     throw new Error(`Kiểm tra user thất bại: ${checkError.message}`)
   }
   
   if (!userExists || userExists.length === 0) {
-    console.error('[DB ERROR] User not found:', userId)
+    console.error(`[ERROR] User not found in user_profiles for ID: ${userId}`)
+    console.error(`[ERROR] This means RLS is blocking SELECT or user doesn't exist`)
     throw new Error(`User ID không tồn tại trong hệ thống: ${userId}`)
   }
   
-  console.log('[DB] User exists, proceeding with update...')
+  console.log(`[CHECK] ✓ User exists:`, userExists[0])
   
   // 3. Cập nhật database
-  const { data, error, status } = await supabase
+  console.log(`[UPDATE] Calling update query...`)
+  const { data: updateData, error: updateError } = await supabase
     .from('user_profiles')
     .update({ full_name: fullName, display_name: displayName })
     .eq('user_id', userId)
     .select()
   
-  if (error) {
-    console.error('[DB ERROR]', error)
-    throw new Error(`Cập nhật database thất bại: ${error.message}`)
+  console.log(`[UPDATE] Error:`, updateError)
+  console.log(`[UPDATE] Data:`, updateData)
+  
+  if (updateError) {
+    console.error(`[ERROR] Update failed:`, updateError)
+    throw new Error(`Cập nhật database thất bại: ${updateError.message}`)
   }
   
-  console.log(`[DB] Update status: ${status}, data:`, data)
-  
-  // 4. Xác nhận update thành công
-  if (!data || data.length === 0) {
+  if (!updateData || updateData.length === 0) {
+    console.error(`[ERROR] Update returned no data`)
     throw new Error('Cập nhật không thành công - không tìm thấy user')
   }
   
-  console.log('[DB] Update verified:', data[0])
+  console.log(`[UPDATE] ✓ Update successful:`, updateData[0])
   
-  // 5. Verify update bằng fetch lại (không dùng .single())
-  console.log('[DB] Verifying update by fetching...')
-  const { data: verify, error: verifyError } = await supabase
+  // 4. Verify update bằng fetch lại
+  console.log(`[VERIFY] Verifying update...`)
+  const { data: verified, error: verifyError } = await supabase
     .from('user_profiles')
     .select('user_id, full_name, display_name')
     .eq('user_id', userId)
   
+  console.log(`[VERIFY] Error:`, verifyError)
+  console.log(`[VERIFY] Data:`, verified)
+  
   if (verifyError) {
-    console.error('[DB ERROR] Verification failed:', verifyError)
-  } else if (verify && verify.length > 0) {
-    console.log('[DB] Verification passed:', verify[0])
-    if (verify[0].full_name !== fullName || verify[0].display_name !== displayName) {
-      console.warn('[DB WARN] Verification mismatch! Expected:', { fullName, displayName }, 'Got:', { full_name: verify[0].full_name, display_name: verify[0].display_name })
+    console.error(`[ERROR] Verification query failed:`, verifyError)
+  } else if (verified && verified.length > 0) {
+    console.log(`[VERIFY] ✓ Verified:`, verified[0])
+    if (verified[0].full_name === fullName && verified[0].display_name === displayName) {
+      console.log(`[VERIFY] ✓✓ Data matches perfectly!`)
+    } else {
+      console.warn(`[WARN] Data mismatch!`)
+      console.warn(`[WARN] Expected:`, { fullName, displayName })
+      console.warn(`[WARN] Got:`, { full_name: verified[0].full_name, display_name: verified[0].display_name })
     }
   }
   
-  // 6. Wait để Supabase sync toàn bộ
-  console.log('[DB] Waiting 800ms for sync...')
+  // 5. Wait để Supabase sync
+  console.log(`[WAIT] Waiting 800ms for Supabase sync...`)
   await new Promise(resolve => setTimeout(resolve, 800))
+  console.log(`[WAIT] ✓ Sync complete`)
   
-  return data[0]
+  console.log(`========== updateMemberName END ==========\n`)
+  return updateData[0]
 }
 
 // Super Admin update tên của chính mình
