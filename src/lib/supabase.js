@@ -269,7 +269,26 @@ export async function updateMemberName(userId, fullName, displayName) {
   if (!userId) throw new Error('User ID không hợp lệ')
   if (!fullName || !displayName) throw new Error('Tên không được để trống')
   
-  // 2. Cập nhật database
+  // 2. Kiểm tra user tồn tại trước
+  console.log('[DB] Checking if user exists...')
+  const { data: userExists, error: checkError } = await supabase
+    .from('user_profiles')
+    .select('user_id')
+    .eq('user_id', userId)
+  
+  if (checkError) {
+    console.error('[DB ERROR] Check failed:', checkError)
+    throw new Error(`Kiểm tra user thất bại: ${checkError.message}`)
+  }
+  
+  if (!userExists || userExists.length === 0) {
+    console.error('[DB ERROR] User not found:', userId)
+    throw new Error(`User ID không tồn tại trong hệ thống: ${userId}`)
+  }
+  
+  console.log('[DB] User exists, proceeding with update...')
+  
+  // 3. Cập nhật database
   const { data, error, status } = await supabase
     .from('user_profiles')
     .update({ full_name: fullName, display_name: displayName })
@@ -283,31 +302,31 @@ export async function updateMemberName(userId, fullName, displayName) {
   
   console.log(`[DB] Update status: ${status}, data:`, data)
   
-  // 3. Xác nhận update thành công
+  // 4. Xác nhận update thành công
   if (!data || data.length === 0) {
     throw new Error('Cập nhật không thành công - không tìm thấy user')
   }
   
   console.log('[DB] Update verified:', data[0])
   
-  // 4. Verify update đúng bằng cách fetch lại ngay
+  // 5. Verify update bằng fetch lại (không dùng .single())
   console.log('[DB] Verifying update by fetching...')
   const { data: verify, error: verifyError } = await supabase
     .from('user_profiles')
     .select('user_id, full_name, display_name')
     .eq('user_id', userId)
-    .single()
   
   if (verifyError) {
     console.error('[DB ERROR] Verification failed:', verifyError)
-  } else {
-    console.log('[DB] Verification passed:', verify)
-    if (verify.full_name !== fullName || verify.display_name !== displayName) {
-      console.warn('[DB WARN] Verification mismatch! Expected:', { fullName, displayName }, 'Got:', { full_name: verify.full_name, display_name: verify.display_name })
+  } else if (verify && verify.length > 0) {
+    console.log('[DB] Verification passed:', verify[0])
+    if (verify[0].full_name !== fullName || verify[0].display_name !== displayName) {
+      console.warn('[DB WARN] Verification mismatch! Expected:', { fullName, displayName }, 'Got:', { full_name: verify[0].full_name, display_name: verify[0].display_name })
     }
   }
   
-  // 5. Wait để Supabase sync toàn bộ
+  // 6. Wait để Supabase sync toàn bộ
+  console.log('[DB] Waiting 800ms for sync...')
   await new Promise(resolve => setTimeout(resolve, 800))
   
   return data[0]
