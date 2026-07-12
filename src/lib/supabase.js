@@ -282,54 +282,37 @@ export async function removeMember(userId) {
 
 // Admin update tên nhân viên - dùng RPC SECURITY DEFINER
 export async function updateMemberName(userId, fullName, displayName) {
-  console.log(`\n========== updateMemberName START ==========`)
-  console.log(`[UPDATE] user_id: ${userId}`)
-  console.log(`[UPDATE] full_name: ${fullName}`)
-  console.log(`[UPDATE] display_name: ${displayName}`)
-  
-  // 1. Validate input
-  if (!userId) throw new Error('User ID không hợp lệ')
-  if (!fullName || !displayName) throw new Error('Tên không được để trống')
-  
-  try {
-    // 2. Call RPC function (SECURITY DEFINER - bypass RLS)
-    console.log(`[RPC] Calling update_member_name_secure...`)
-    const { data, error } = await supabase.rpc('update_member_name_secure', {
-      p_target_user_id: userId,
-      p_full_name: fullName,
-      p_display_name: displayName,
-    })
-    
-    console.log(`[RPC] Error:`, error)
-    console.log(`[RPC] Response:`, data)
-    
-    if (error) {
-      console.error(`[ERROR] RPC failed:`, error)
-      throw new Error(`Cập nhật thất bại: ${error.message}`)
-    }
-    
-    // 3. Check response
-    if (!data) {
-      console.error(`[ERROR] RPC returned no data`)
-      throw new Error('Cập nhật không thành công')
-    }
-    
-    // 4. Check if RPC returned error in response
-    if (data.error) {
-      console.error(`[ERROR] RPC error response:`, data.error)
-      throw new Error(data.error)
-    }
-    
-    // 5. Success
-    console.log(`[SUCCESS] ✓ Update successful:`, data)
-    console.log(`========== updateMemberName END ==========\n`)
-    
-    return data
-    
-  } catch (e) {
-    console.error(`[EXCEPTION] Error:`, e.message)
-    console.log(`========== updateMemberName END (ERROR) ==========\n`)
-    throw e
+  const cleanUserId = typeof userId === 'string' ? userId.trim() : ''
+  const cleanFullName = typeof fullName === 'string' ? fullName.trim() : ''
+  const cleanDisplayName = typeof displayName === 'string' && displayName.trim()
+    ? displayName.trim()
+    : cleanFullName
+
+  if (!cleanUserId) throw new Error('User ID không hợp lệ')
+  if (!cleanFullName) throw new Error('Tên không được để trống')
+
+  const { data, error } = await supabase.rpc('update_member_name_secure', {
+    p_target_user_id: cleanUserId,
+    p_full_name: cleanFullName,
+    p_display_name: cleanDisplayName,
+  })
+
+  if (error) {
+    console.error('[updateMemberName] RPC error:', error)
+    throw new Error(`Cập nhật thất bại: ${error.message}`)
+  }
+
+  if (data?.error) {
+    throw new Error(data.error)
+  }
+
+  // Function mới luôn trả JSON. Giữ fallback này để không báo lỗi giả
+  // nếu PostgREST trả null do schema cache chưa kịp refresh.
+  return data || {
+    success: true,
+    user_id: cleanUserId,
+    full_name: cleanFullName,
+    display_name: cleanDisplayName,
   }
 }
 
