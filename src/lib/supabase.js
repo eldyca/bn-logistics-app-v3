@@ -234,6 +234,35 @@ export async function removeMember(userId) {
   if (error) throw error
 }
 
+// Admin update tên nhân viên
+export async function updateMemberName(userId, fullName, displayName) {
+  const { error } = await supabase
+    .from('user_profiles')
+    .update({ full_name: fullName, display_name: displayName })
+    .eq('user_id', userId)
+  if (error) throw error
+}
+
+// Super Admin update tên của chính mình
+export async function updateMyName(fullName, displayName) {
+  const user = await currentUser()
+  if (!user) throw new Error('Chưa đăng nhập')
+  const { error } = await supabase
+    .from('user_profiles')
+    .update({ full_name: fullName, display_name: displayName })
+    .eq('user_id', user.id)
+  if (error) throw error
+}
+
+// Admin cập nhật tên nhân viên (display_name)
+export async function updateEmployeeName(userId, displayName) {
+  const { error } = await supabase
+    .from('user_profiles')
+    .update({ display_name: displayName })
+    .eq('user_id', userId)
+  if (error) throw error
+}
+
 export async function listInvitations() {
   const { data, error } = await supabase
     .from('invitations')

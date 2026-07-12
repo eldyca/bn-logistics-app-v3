@@ -190,9 +190,8 @@ function CargoReceipt({ order, recvAddr }) {
         <div className="crc-full"><b>Mô tả hàng:</b> {c.desc}</div>
         <div className="crc-hr" />
         <div className="crc-row"><span><b>Loại dịch vụ:</b> {c.service}</span><span><b>Hình thức thanh toán:</b> {c.pay}</span></div>
-        <div className="crc-row3"><span><b>Số kiện:</b> {c.pieces}</span><span><b>Giá cước/lbs:</b> {usd(perLb)}</span><span><b>Trọng lượng (lbs):</b> {c.weight}</span></div>
-        <div className="crc-row"><span><b>Tiền cước:</b> {usd(freight)}</span><span><b>Phụ phí:</b> {usd(num(c.surcharge))}</span></div>
-        <div className="crc-row"><span><b>Tiền hàng:</b> {usd(num(c.goodsValue))}</span><span><b>Bảo hiểm:</b> {usd(num(c.insurance))}</span></div>
+        <div className="crc-row"><span><b>Số kiện:</b> {c.pieces}</span><span><b>Trọng lượng (lbs):</b> {c.weight}</span></div>
+        <div className="crc-row"><span><b>Phụ phí:</b> {usd(num(c.surcharge))}</span><span><b>Bảo hiểm:</b> {usd(num(c.insurance))}</span></div>
         <div className="crc-total"><b>TỔNG PHÍ: {usd(grand)}</b></div>
 
         {items.length > 0 && (

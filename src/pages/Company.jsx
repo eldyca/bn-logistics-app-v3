@@ -5,6 +5,7 @@ import { useOrders } from '../context/OrdersContext'
 import {
   listMembers, listMemberProfiles, adminCreateMember, removeMember,
   setMemberRole, setMemberPermissions, setMemberActive, adminResetMemberPassword,
+  updateMemberName,
 } from '../lib/supabase'
 import { exportOrders } from '../lib/exportCsv'
 
@@ -33,6 +34,8 @@ export default function Company() {
   const [invitePerms, setInvitePerms] = useState({ ...DEFAULT_PERMS })
   const [creating, setCreating] = useState(false)
   const [msg, setMsg] = useState(null)
+  const [editingUser, setEditingUser] = useState(null) // State cho chỉnh sửa tên
+  const [editingName, setEditingName] = useState('') // Tên đang edit
 
   const load = useCallback(async () => {
     try {
@@ -98,9 +101,17 @@ export default function Company() {
       <div className="panel">
         <div className="phead">{company?.name}</div>
         <div className="pbody">
-          <div style={{ fontSize: 13, color: 'var(--muted)' }}>
+          <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: '12px' }}>
             {t('company.yourRole')}: <strong style={{ color: 'var(--ink)' }}>{role}</strong>
           </div>
+          {isAdmin && (
+            <div style={{ fontSize: 13, color: 'var(--muted)' }}>
+              Tên của bạn: <strong style={{ color: 'var(--ink)' }}>{profiles[myId]?.display_name || profiles[myId]?.full_name || 'Chưa cập nhật'}</strong>
+              <button className="mini" onClick={() => { setEditingUser(myId); setEditingName(profiles[myId]?.display_name || profiles[myId]?.full_name || ''); }} style={{ marginLeft: '8px' }}>
+                ✏️ Sửa
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -191,6 +202,7 @@ export default function Company() {
                       <td style={{ padding: '10px 8px', textAlign: 'center' }}>
                         {!self ? (
                           <div style={{ display: 'flex', gap: '4px', justifyContent: 'flex-start', flexWrap: 'wrap' }}>
+                            <button className="mini" onClick={() => { setEditingUser(m.user_id); setEditingName(profile.display_name || profile.full_name || '') }} title="Chỉnh sửa tên">✏️</button>
                             <button className="mini" onClick={() => run(() => setMemberActive(m.user_id, !m.active))} title={m.active ? 'Khóa' : 'Mở khóa'}>
                               {m.active ? '🔒' : '🔓'}
                             </button>
@@ -251,6 +263,60 @@ export default function Company() {
           </div>
         </div>
       </div>
+
+      {/* Modal edit tên nhân viên */}
+      {editingUser && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 9999
+        }}>
+          <div style={{
+            background: '#fff', padding: '20px', borderRadius: '8px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)', maxWidth: '400px', width: '90%'
+          }}>
+            <h3 style={{ marginTop: 0, marginBottom: '16px' }}>Chỉnh sửa tên nhân viên</h3>
+            <div className="field" style={{ marginBottom: '12px' }}>
+              <label>Tên nhân viên</label>
+              <input 
+                type="text" 
+                value={editingName} 
+                onChange={(e) => setEditingName(e.target.value)}
+                placeholder="Nhập tên nhân viên"
+                autoFocus
+              />
+            </div>
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+              <button 
+                className="btn btn-ghost" 
+                onClick={() => { setEditingUser(null); setEditingName('') }}
+              >
+                Hủy
+              </button>
+              <button 
+                className="searchbtn" 
+                onClick={async () => {
+                  if (!editingName.trim()) {
+                    setMsg('Tên nhân viên không được để trống')
+                    return
+                  }
+                  try {
+                    await updateMemberName(editingUser, editingName.trim(), editingName.trim())
+                    setEditingUser(null)
+                    setEditingName('')
+                    await load()
+                    setMsg('Cập nhật tên thành công')
+                  } catch (e) {
+                    setMsg(e.message || String(e))
+                  }
+                }}
+              >
+                Lưu
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }
