@@ -164,13 +164,31 @@ export async function adminCreateMember({ identifier, fullName, password, role =
   return out
 }
 
-// Danh sách thành viên kèm tên/username từ user_profiles
+// Danh sách thành viên kèm tên/username từ user_profiles + email từ users
 export async function listMemberProfiles(userIds) {
   if (!userIds || !userIds.length) return {}
-  const { data } = await supabase
+  
+  // Lấy profile (tên, username)
+  const { data: profiles } = await supabase
     .from('user_profiles').select('user_id, full_name, display_name, username').in('user_id', userIds)
+  
+  // Lấy email từ users table
+  const { data: users } = await supabase
+    .from('users').select('id, email').in('id', userIds)
+  
+  // Map dữ liệu
   const map = {}
-  for (const p of data || []) map[p.user_id] = p
+  for (const p of profiles || []) {
+    map[p.user_id] = p
+  }
+  // Thêm email vào map
+  for (const u of users || []) {
+    if (map[u.id]) {
+      map[u.id].email = u.email
+    } else {
+      map[u.id] = { user_id: u.id, email: u.email }
+    }
+  }
   return map
 }
 

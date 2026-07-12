@@ -146,47 +146,96 @@ export default function Company() {
       <div className="panel">
         <div className="phead">{t('company.members')}</div>
         <div className="pbody">
-          {members.map((m) => {
-            const self = m.user_id === myId
-            return (
-              <div key={m.id} className="member-row">
-                <div className="member-head">
-                  <span>
-                    {(() => { const p = profiles[m.user_id] || {}; const nm = p.display_name || p.full_name; const u = p.username
-                      return <><b>{nm || m.email}</b>{u ? ' · @' + u : (nm ? ' · ' + m.email : '')} </> })()}
-                    <span className="pill">{m.role === 'admin' ? t('company.admin') : t('company.staff')}</span>{' '}
-                    {!m.active ? <span className="pill" style={{ background: 'var(--out,#c0392b)', color: '#fff' }}>{t('company.locked')}</span> : null}
-                  </span>
-                  {isAdmin && !self ? (
-                    <div className="member-actions">
-                      <select value={m.role} onChange={(e) => run(() => setMemberRole(m.user_id, e.target.value))}>
-                        <option value="staff">{t('company.staff')}</option>
-                        <option value="admin">{t('company.admin')}</option>
-                      </select>
-                      <button className="mini" onClick={() => run(() => setMemberActive(m.user_id, !m.active))}>
-                        {m.active ? t('company.lock') : t('company.unlock')}
-                      </button>
-                      <button className="mini" onClick={() => doResetPassword(m)}>Đặt lại MK</button>
-                      <button className="mini del" onClick={() => { if (confirm(t('company.remove') + '?')) run(() => removeMember(m.user_id)) }}>
-                        {t('company.remove')}
-                      </button>
+          {/* Bảng danh sách thành viên */}
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+            <thead>
+              <tr style={{ borderBottom: '2px solid #ddd', backgroundColor: 'var(--bg-soft,#f9f9f9)' }}>
+                <th style={{ padding: '10px 8px', textAlign: 'left', fontWeight: 600 }}>STT</th>
+                <th style={{ padding: '10px 8px', textAlign: 'left', fontWeight: 600 }}>Tên nhân viên</th>
+                <th style={{ padding: '10px 8px', textAlign: 'left', fontWeight: 600 }}>Username/Email</th>
+                <th style={{ padding: '10px 8px', textAlign: 'left', fontWeight: 600 }}>Vai trò</th>
+                <th style={{ padding: '10px 8px', textAlign: 'left', fontWeight: 600 }}>Trạng thái</th>
+                {isAdmin && <th style={{ padding: '10px 8px', textAlign: 'left', fontWeight: 600 }}>Thao tác</th>}
+              </tr>
+            </thead>
+            <tbody>
+              {members.map((m, idx) => {
+                const self = m.user_id === myId
+                const profile = profiles[m.user_id] || {}
+                // Lấy tên nhân viên: display_name → full_name → "Chưa cập nhật tên"
+                const employeeName = profile.display_name || profile.full_name || 'Chưa cập nhật tên'
+                // Lấy username hoặc email: username → email
+                const usernameOrEmail = profile.username ? `@${profile.username}` : (profile.email || '—')
+                
+                return (
+                  <tr key={m.id} style={{ borderBottom: '1px solid #eee', backgroundColor: self ? 'var(--bg-soft,#f9f9f9)' : 'transparent' }}>
+                    <td style={{ padding: '10px 8px' }}>
+                      <strong>{idx + 1}</strong>
+                    </td>
+                    <td style={{ padding: '10px 8px' }}>
+                      <strong style={{ color: 'var(--ink)' }}>{employeeName}</strong>
+                      {!m.active && <span style={{ color: 'var(--out,#c0392b)', fontSize: '11px', marginLeft: '6px' }}>(Bị khóa)</span>}
+                    </td>
+                    <td style={{ padding: '10px 8px', color: 'var(--muted)' }}>
+                      {usernameOrEmail}
+                    </td>
+                    <td style={{ padding: '10px 8px' }}>
+                      <span style={{ fontSize: '12px', fontWeight: 600, color: m.role === 'admin' ? 'var(--accent,#3498db)' : 'var(--muted)' }}>
+                        {m.role === 'admin' ? 'Admin' : 'Nhân viên'}
+                      </span>
+                    </td>
+                    <td style={{ padding: '10px 8px' }}>
+                      {m.active ? <span style={{ fontSize: '11px', color: 'green' }}>✓ Hoạt động</span> : <span style={{ fontSize: '11px', color: 'var(--out,#c0392b)' }}>✗ Khóa</span>}
+                    </td>
+                    {isAdmin && (
+                      <td style={{ padding: '10px 8px', textAlign: 'center' }}>
+                        {!self ? (
+                          <div style={{ display: 'flex', gap: '4px', justifyContent: 'flex-start', flexWrap: 'wrap' }}>
+                            <button className="mini" onClick={() => run(() => setMemberActive(m.user_id, !m.active))} title={m.active ? 'Khóa' : 'Mở khóa'}>
+                              {m.active ? '🔒' : '🔓'}
+                            </button>
+                            <button className="mini" onClick={() => doResetPassword(m)} title="Đặt lại mật khẩu">🔑</button>
+                            <button className="mini del" onClick={() => { if (confirm('Xóa ' + employeeName + '?')) run(() => removeMember(m.user_id)) }} title="Xóa">🗑️</button>
+                          </div>
+                        ) : (
+                          <span style={{ fontSize: '11px', color: 'var(--muted)' }}>(Bạn)</span>
+                        )}
+                      </td>
+                    )}
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+
+          {/* Quyền cho nhân viên không phải admin */}
+          {isAdmin && members.some(m => m.role !== 'admin' && m.user_id !== myId) && (
+            <div style={{ marginTop: '20px', paddingTop: '20px', borderTop: '1px solid #ddd' }}>
+              <p style={{ fontSize: '12px', fontWeight: 600, marginBottom: '12px' }}>⚙️ Cấp quyền cho Nhân viên:</p>
+              {members.map((m) => {
+                if (m.role === 'admin' || m.user_id === myId) return null
+                const profile = profiles[m.user_id] || {}
+                const employeeName = profile.display_name || profile.full_name || 'Chưa cập nhật tên'
+                
+                return (
+                  <div key={m.id} style={{ marginBottom: '12px', paddingBottom: '12px', borderBottom: '1px solid #eee' }}>
+                    <label style={{ fontSize: '12px', fontWeight: 600, display: 'block', marginBottom: '8px' }}>
+                      {employeeName}
+                    </label>
+                    <div className="perm-grid">
+                      {PERM_KEYS.map((k) => (
+                        <label key={k} className="perm-chk">
+                          <input type="checkbox" checked={!!m.perms[k]}
+                            onChange={(e) => run(() => setMemberPermissions(m.user_id, { [k]: e.target.checked }))} />
+                          {t('perm.' + k)}
+                        </label>
+                      ))}
                     </div>
-                  ) : null}
-                </div>
-                {isAdmin && !self && m.role !== 'admin' ? (
-                  <div className="perm-grid" style={{ marginTop: 6 }}>
-                    {PERM_KEYS.map((k) => (
-                      <label key={k} className="perm-chk">
-                        <input type="checkbox" checked={!!m.perms[k]}
-                          onChange={(e) => run(() => setMemberPermissions(m.user_id, { [k]: e.target.checked }))} />
-                        {t('perm.' + k)}
-                      </label>
-                    ))}
                   </div>
-                ) : null}
-              </div>
-            )
-          })}
+                )
+              })}
+            </div>
+          )}
         </div>
       </div>
 
